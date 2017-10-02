@@ -1163,6 +1163,13 @@ class SmoothLinePlot(Plot):
         b"{{{sssjjjbbbZZZRRRJJJAAA999111)))   \x18\x18\x18\x10\x10\x10"
         b"\x08\x08\x08\x00\x00\x00")
 
+    '''Args:
+       line_width (float) - the width of the graph line
+    '''
+    def __init__(self, **kwargs):
+        self._line_width = kwargs.get('line_width', 2)
+        super(SmoothLinePlot, self).__init__(**kwargs)
+
     def create_drawings(self):
         from kivy.graphics import Line, RenderContext
 
@@ -1178,7 +1185,7 @@ class SmoothLinePlot(Plot):
                 use_parent_projection=True)
         with self._grc:
             self._gcolor = Color(*self.color)
-            self._gline = Line(points=[], cap='none', width=2.,
+            self._gline = Line(points=[], cap='none', width=self._line_width,
                     texture=SmoothLinePlot._texture)
 
         return [self._grc]
