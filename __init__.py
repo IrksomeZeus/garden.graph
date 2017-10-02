@@ -563,7 +563,7 @@ class Graph(Widget):
         if self.ylabel:
             ylabel = self._ylabel
             if not ylabel:
-                ylabel = Label()
+                ylabel = RotateLabel()
                 self.add_widget(ylabel)
                 self._ylabel = ylabel
 
