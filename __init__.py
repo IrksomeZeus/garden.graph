@@ -115,10 +115,14 @@ class Graph(Widget):
     _xlabel = ObjectProperty(None)
     # holds widget with the y-axis label
     _ylabel = ObjectProperty(None)
+    # holds widget with the secondary y-axis label
+    _ylabel_sec = ObjectProperty(None)
     # holds all the x-axis tick mark labels
     _x_grid_label = ListProperty([])
     # holds all the y-axis tick mark labels
     _y_grid_label = ListProperty([])
+    # holds all the secondary y-axis tick mark labels
+    _y_grid_label_sec = ListProperty([])
     # the mesh drawing all the ticks/grids
     _mesh_ticks = ObjectProperty(None)
     # the mesh which draws the surrounding rectangle
@@ -129,6 +133,8 @@ class Graph(Widget):
     _ticks_minorx = ListProperty([])
     _ticks_majory = ListProperty([])
     _ticks_minory = ListProperty([])
+    _ticks_majory_sec = ListProperty([])
+    _ticks_minory_sec = ListProperty([])
 
     tick_color = ListProperty([.25, .25, .25, 1])
     '''Color of the grid/ticks, default to 1/4. grey.
@@ -187,10 +193,12 @@ class Graph(Widget):
         tc = self._trigger_color = Clock.create_trigger(self._update_colors)
 
         self.bind(center=ts, padding=ts, precision=ts, plots=ts, x_grid=ts,
-                  y_grid=ts, draw_border=ts)
+                  y_grid=ts, y_grid_sec=ts, draw_border=ts)
         self.bind(xmin=t, xmax=t, xlog=t, x_ticks_major=t, x_ticks_minor=t,
                   xlabel=t, x_grid_label=t, ymin=t, ymax=t, ylog=t,
                   y_ticks_major=t, y_ticks_minor=t, ylabel=t, y_grid_label=t,
+                  ymin_sec=t, ymax_sec=t, y_ticks_major_sec=t, y_ticks_minor_sec=t,
+                  ylabel_sec=t, y_grid_label_sec=t,
                   font_size=t, label_options=t, x_ticks_angle=t)
         self.bind(tick_color=tc, background_color=tc, border_color=tc)
         self._trigger()
@@ -285,8 +293,7 @@ class Graph(Widget):
                 # distance between each tick
                 tick_dist = major / float(minor if minor else 1.0)
                 n_ticks = int(floor((s_max - s_min) / tick_dist) + 1)
-                points_major = [0] * int(floor((s_max - s_min) / float(major))
-                                         + 1)
+                points_major = [0] * int(floor((s_max - s_min) / float(major)) + 1)
                 points_minor = [0] * (n_ticks - len(points_major) + 1)
                 k = 0  # position in points major
                 k2 = 0  # position in points minor
@@ -307,6 +314,7 @@ class Graph(Widget):
     def _update_labels(self):
         xlabel = self._xlabel
         ylabel = self._ylabel
+        ylabel_sec = self._ylabel_sec
         x = self.x
         y = self.y
         width = self.width
@@ -314,14 +322,20 @@ class Graph(Widget):
         padding = self.padding
         x_next = padding + x
         y_next = padding + y
+        y_next_sec = padding + y
         xextent = width + x
         yextent = height + y
+        yextent_sec = height + y
         ymin = self.ymin
         ymax = self.ymax
+        ymin_sec = self.ymin_sec
+        ymax_sec = self.ymax_sec
+
         xmin = self.xmin
         precision = self.precision
         x_overlap = False
         y_overlap = False
+        y_overlap_sec = False
         # set up x and y axis labels
         if xlabel:
             xlabel.text = self.xlabel
@@ -329,18 +343,27 @@ class Graph(Widget):
             xlabel.size = xlabel.texture_size
             xlabel.pos = int(x + width / 2. - xlabel.width / 2.), int(padding + y)
             y_next += padding + xlabel.height
+            y_next_sec += padding + xlabel.height
         if ylabel:
             ylabel.text = self.ylabel
             ylabel.texture_update()
             ylabel.size = ylabel.texture_size
             ylabel.x = padding + x - (ylabel.width / 2. - ylabel.height / 2.)
             x_next += padding + ylabel.height
+        if ylabel_sec:
+            ylabel_sec.text = self.ylabel_sec
+            ylabel_sec.texture_update()
+            ylabel_sec.size = ylabel_sec.texture_size
+            ylabel_sec.right = width - padding + (ylabel_sec.width / 2. - ylabel_sec.height / 2.)
         xpoints = self._ticks_majorx
         xlabels = self._x_grid_label
         xlabel_grid = self.x_grid_label
         ylabel_grid = self.y_grid_label
         ypoints = self._ticks_majory
         ylabels = self._y_grid_label
+        ylabel_grid_sec = self.y_grid_label_sec
+        ypoints_sec = self._ticks_majory_sec
+        ylabels_sec = self._y_grid_label_sec
         # now x and y tick mark labels
         if len(ylabels) and ylabel_grid:
             # horizontal size of the largest tick label, to have enough room
@@ -369,6 +392,7 @@ class Graph(Widget):
                 y_overlap = True
             else:
                 x_next += y1 + padding
+
         if len(xlabels) and xlabel_grid:
             funcexp = exp10 if self.xlog else identity
             funclog = log10 if self.xlog else identity
@@ -376,6 +400,8 @@ class Graph(Widget):
             xlabels[0].text = precision % funcexp(xpoints[-1])
             xlabels[0].texture_update()
             xextent = x + width - xlabels[0].texture_size[0] / 2. - padding
+            if ylabel_sec:
+                xextent -= ylabel_sec.width
             # find the distance from the start that'll fit the first tick label
             if not x_next:
                 xlabels[0].text = precision % funcexp(xpoints[0])
@@ -397,18 +423,50 @@ class Graph(Widget):
                 right = xlabels[k].right
             if not x_overlap:
                 y_next += padding + xlabels[0].texture_size[1]
+        if len(ylabels_sec) and ylabel_grid_sec:
+            # horizontal size of the largest tick label, to have enough room
+            funcexp = exp10 if self.ylog else identity
+            funclog = log10 if self.ylog else identity
+            ylabels_sec[0].text = precision % funcexp(ypoints_sec[0])
+            ylabels_sec[0].texture_update()
+            y1 = ylabels_sec[0].texture_size
+            y_start = y_next_sec + (padding + y1[1] if len(xlabels) and xlabel_grid
+                                else 0) + \
+                               (padding + y1[1] if not y_next_sec else 0)
+            yextent_sec = y + height - padding - y1[1] / 2.
+
+            ymin_sec = funclog(ymin_sec)
+            ratio = (yextent_sec - y_start) / float(funclog(ymax_sec) - ymin_sec)
+            y_start -= y1[1] / 2.
+            y1 = y1[0]
+            x_pos = xextent + padding
+            for k in range(len(ylabels_sec)):
+                ylabels_sec[k].text = precision % funcexp(ypoints_sec[k])
+                ylabels_sec[k].texture_update()
+                ylabels_sec[k].size = ylabels_sec[k].texture_size
+                y1 = max(y1, ylabels_sec[k].texture_size[0])
+                ylabels_sec[k].pos = tuple(map(int, (x_pos, y_start +
+                                                 (ypoints_sec[k] - ymin_sec) * ratio)))
+            if len(ylabels_sec) > 1 and ylabels_sec[0].top > ylabels_sec[1].y:
+                y_overlap_sec = True
         # now re-center the x and y axis labels
         if xlabel:
             xlabel.x = int(x_next + (xextent - x_next) / 2. - xlabel.width / 2.)
         if ylabel:
             ylabel.y = int(y_next + (yextent - y_next) / 2. - ylabel.height / 2.)
             ylabel.angle = 90
+        if ylabel_sec:
+            ylabel_sec.y = int(y_next_sec + (yextent_sec - y_next_sec) / 2. - ylabel_sec.height / 2.)
+            ylabel_sec.angle = 270
         if x_overlap:
             for k in range(len(xlabels)):
                 xlabels[k].text = ''
         if y_overlap:
             for k in range(len(ylabels)):
                 ylabels[k].text = ''
+        if y_overlap_sec:
+            for k in range(len(ylabels_sec)):
+                ylabels_sec[k].text = ''
         return x_next - x, y_next - y, xextent - x, yextent - y
 
     def _update_ticks(self, size):
@@ -436,8 +494,10 @@ class Graph(Widget):
         start = 0
         xpoints = self._ticks_majorx
         ypoints = self._ticks_majory
+        ypoints_sec = self._ticks_majory_sec
         xpoints2 = self._ticks_minorx
         ypoints2 = self._ticks_minory
+        ypoints2_sec = self._ticks_minory_sec
         ylog = self.ylog
         xlog = self.xlog
         xmin = self.xmin
@@ -447,9 +507,13 @@ class Graph(Widget):
             xmax = log10(xmax)
         ymin = self.ymin
         ymax = self.ymax
+        ymin_sec = self.ymin_sec
+        ymax_sec = self.ymax_sec
         if ylog:
             ymin = log10(ymin)
             ymax = log10(ymax)
+            ymin_sec = log10(ymin_sec)
+            ymax_sec = log10(ymax_sec)
         if len(xpoints):
             top = size[3] if self.x_grid else metrics.dp(12) + size[1]
             ratio = (size[2] - size[0]) / float(xmax - xmin)
@@ -485,6 +549,24 @@ class Graph(Widget):
                 vert[k * 8 + 5] = vert[k * 8 + 1]
                 vert[k * 8] = size[0]
                 vert[k * 8 + 4] = top
+            start += len(ypoints2)
+        if len(ypoints_sec):
+            top = size[2] if self.y_grid_sec else metrics.dp(12) + size[0]
+            ratio = (size[3] - size[1]) / float(ymax_sec - ymin_sec)
+            for k in range(start, len(ypoints_sec) + start):
+                vert[k * 8 + 1] = size[1] + (ypoints_sec[k - start] - ymin_sec) * ratio
+                vert[k * 8 + 5] = vert[k * 8 + 1]
+                vert[k * 8] = size[0]
+                vert[k * 8 + 4] = top
+            start += len(ypoints_sec)
+        if len(ypoints2_sec):
+            top = metrics.dp(8) + size[0]
+            ratio = (size[3] - size[1]) / float(ymax_sec - ymin_sec)
+            for k in range(start, len(ypoints2_sec) + start):
+                vert[k * 8 + 1] = size[1] + (ypoints2_sec[k - start] - ymin_sec) * ratio
+                vert[k * 8 + 5] = vert[k * 8 + 1]
+                vert[k * 8] = size[0]
+                vert[k * 8 + 4] = top
         mesh.vertices = vert
 
     def _update_plots(self, size):
@@ -494,8 +576,13 @@ class Graph(Widget):
         xmax = self.xmax
         ymin = self.ymin
         ymax = self.ymax
+        ymin_sec = self.ymin_sec
+        ymax_sec = self.ymax_sec
         for plot in self.plots:
-            plot._update(xlog, xmin, xmax, ylog, ymin, ymax, size)
+            if plot.axis == 'primary':
+                plot._update(xlog, xmin, xmax, ylog, ymin, ymax, size)
+            else:
+                plot._update(xlog, xmin, xmax, ylog, ymin_sec, ymax_sec, size)
 
     def _update_colors(self, *args):
         self._mesh_ticks_color.rgba = tuple(self.tick_color)
@@ -505,11 +592,12 @@ class Graph(Widget):
     def _redraw_all(self, *args):
         # add/remove all the required labels
         xpoints_major, xpoints_minor = self._redraw_x(*args)
-        ypoints_major, ypoints_minor = self._redraw_y(*args)
+        ypoints_major, ypoints_minor, ypoints_major_sec, ypoints_minor_sec = self._redraw_y(*args)
 
         mesh = self._mesh_ticks
         n_points = (len(xpoints_major) + len(xpoints_minor) +
-                    len(ypoints_major) + len(ypoints_minor))
+                    len(ypoints_major) + len(ypoints_minor) +
+                    len(ypoints_major_sec) + len(ypoints_minor_sec))
         mesh.vertices = [0] * (n_points * 8)
         mesh.indices = [k for k in range(n_points * 2)]
         self._redraw_size()
@@ -595,9 +683,49 @@ class Graph(Widget):
         grid_len = len(grids)
         grids.extend([None] * (n_labels - len(grids)))
         for k in range(grid_len, n_labels):
+            grids[k] = Label(font_size=font_size, halign='right', **self.label_options)
+            self.add_widget(grids[k])
+
+        if self.ylabel_sec:
+            ylabel = self._ylabel_sec
+            if not ylabel:
+                ylabel = RotateLabel()
+                self.add_widget(ylabel)
+                self._ylabel_sec = ylabel
+
+            ylabel.font_size = font_size
+            for k, v in self.label_options.items():
+                setattr(ylabel, k, v)
+        else:
+            ylabel = self._ylabel_sec
+            if ylabel:
+                self.remove_widget(ylabel)
+                self._ylabel_sec = None
+
+        grids = self._y_grid_label_sec
+        ypoints_major_sec, ypoints_minor_sec = self._get_ticks(self.y_ticks_major_sec,
+                                                       self.y_ticks_minor_sec,
+                                                       self.ylog, self.ymin_sec,
+                                                       self.ymax_sec)
+        self._ticks_majory_sec = ypoints_major_sec
+        self._ticks_minory_sec = ypoints_minor_sec
+
+        if not self.y_grid_label_sec:
+            n_labels = 0
+        else:
+            n_labels = len(ypoints_major_sec)
+
+        for k in range(n_labels, len(grids)):
+            self.remove_widget(grids[k])
+        del grids[n_labels:]
+
+        grid_len = len(grids)
+        grids.extend([None] * (n_labels - len(grids)))
+        for k in range(grid_len, n_labels):
             grids[k] = Label(font_size=font_size, **self.label_options)
             self.add_widget(grids[k])
-        return ypoints_major, ypoints_minor
+
+        return ypoints_major, ypoints_minor, ypoints_major_sec, ypoints_minor_sec
 
     def _redraw_size(self, *args):
         # size a 4-tuple describing the bounding box in which we can draw
@@ -696,10 +824,13 @@ class Graph(Widget):
             conv_x = norm_x * (self.xmax - self.xmin) + self.xmin
         if self.ylog:
             ymin, ymax = log10(self.ymin), log10(self.ymax)
+            ymin_sec, ymax_sec = log10(self.ymin_sec), log10(self.ymax_sec)
             conv_y = 10.**(norm_y * (ymax - ymin) + ymin)
+            conv_y_sec = 10.**(norm_y * (ymax_sec - ymin_sec) + ymin_sec)
         else:
             conv_y = norm_y * (self.ymax - self.ymin) + self.ymin
-        return [conv_x, conv_y]
+            conv_y_sec = norm_y * (self.ymax_sec - self.ymin_sec) + self.ymin_sec
+        return [conv_x, conv_y, conv_y_sec]
 
     xmin = NumericProperty(0.)
     '''The x-axis minimum value.
@@ -805,7 +936,21 @@ class Graph(Widget):
     ymax = NumericProperty(100.)
     '''The y-axis maximum value, larger than ymin.
 
-    :data:`ymax` is a :class:`~kivy.properties.NumericProperty`, defaults to 0.
+    :data:`ymax` is a :class:`~kivy.properties.NumericProperty`, defaults to 100.
+    '''
+
+    ymin_sec = NumericProperty(0.)
+    '''The secondary y-axis minimum value.
+
+    If :data:`ylog` is True, ymin_sec must be larger than zero.
+
+    :data:`ymin_sec` is a :class:`~kivy.properties.NumericProperty`, defaults to 0.
+    '''
+
+    ymax_sec = NumericProperty(100.)
+    '''The secondary y-axis maximum value, larger than ymin_sec.
+
+    :data:`ymax_sec` is a :class:`~kivy.properties.NumericProperty`, defaults to 100.
     '''
 
     ylog = BooleanProperty(False)
@@ -852,6 +997,46 @@ class Graph(Widget):
     the axis.
 
     :data:`ylabel` is a :class:`~kivy.properties.StringProperty`,
+    defaults to ''.
+    '''
+
+    y_ticks_major_sec = BoundedNumericProperty(0, min=0)
+    '''Distance between major tick marks. See :data:`x_ticks_major`.
+
+    :data:`y_ticks_major_sec` is a
+    :class:`~kivy.properties.BoundedNumericProperty`, defaults to 0.
+    '''
+
+    y_ticks_minor_sec = BoundedNumericProperty(0, min=0)
+    '''The number of sub-intervals that divide ticks_major.
+    See :data:`x_ticks_minor`.
+
+    :data:`y_ticks_minor_sec` is a
+    :class:`~kivy.properties.BoundedNumericProperty`, defaults to 0.
+    '''
+
+    y_grid_sec = BooleanProperty(False)
+    '''Determines whether the y-axis has tick marks or a full grid.
+    Value is ignored if :data:`y_grid` is True.
+    See :data:`x_grid`.
+
+    :data:`y_grid_sec` is a :class:`~kivy.properties.BooleanProperty`, defaults
+    to False.
+    '''
+
+    y_grid_label_sec = BooleanProperty(False)
+    '''Whether labels should be displayed beneath each major tick. If true,
+    each major tick will have a label containing the axis value.
+
+    :data:`y_grid_label_sec` is a :class:`~kivy.properties.BooleanProperty`,
+    defaults to False.
+    '''
+
+    ylabel_sec = StringProperty('')
+    '''The label for the secondary y-axis. If not empty it is displayed in the center of
+    the axis.
+
+    :data:`ylabel_sec` is a :class:`~kivy.properties.StringProperty`,
     defaults to ''.
     '''
 
@@ -944,6 +1129,15 @@ class Plot(EventDispatcher):
 
     :data:`points` is a :class:`~kivy.properties.ListProperty`, defaults to
     [].
+    '''
+
+    axis = StringProperty('primary')
+    '''Specifies which y-axis the plot should be drawn on.
+    
+    Any value other than "primary" will result in the secondary axis
+    
+    :data:`axis` is a :class:`~kivy.properties.StringProperty`, defaults to
+    "primary".
     '''
 
     def __init__(self, **kwargs):
@@ -1292,23 +1486,29 @@ if __name__ == '__main__':
             graph = Graph(
                 xlabel='Cheese',
                 ylabel='Apples',
+                ylabel_sec='Secondary',
                 x_ticks_minor=5,
                 x_ticks_major=25,
                 y_ticks_major=1,
+                y_ticks_major_sec=0.25,
                 y_grid_label=True,
+                y_grid_label_sec=True,
                 x_grid_label=True,
                 padding=5,
                 xlog=False,
                 ylog=False,
                 x_grid=True,
                 y_grid=True,
+                y_grid_sec=True,
                 xmin=-50,
                 xmax=50,
                 ymin=-1,
+                ymin_sec=-1,
                 ymax=1,
+                ymax_sec=1,
                 **graph_theme)
 
-            plot = SmoothLinePlot(color=next(colors))
+            plot = SmoothLinePlot(color=next(colors), axis='secondary')
             plot.points = [(x / 10., sin(x / 50.)) for x in range(-500, 501)]
             # for efficiency, the x range matches xmin, xmax
             graph.add_plot(plot)
